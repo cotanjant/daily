@@ -1,0 +1,75 @@
+name: CI and release builds
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Format and compile check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --check
+      - name: Check compilation
+        run: cargo check --locked
+
+  build:
+    name: Build (${{ matrix.asset }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: linux-x86_64
+            executable: ""
+          - os: macos-latest
+            asset: macos
+            executable: ""
+          - os: windows-latest
+            asset: windows-x86_64
+            executable: ".exe"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build release binary
+        run: cargo build --locked --release
+      - name: Prepare release asset
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/release/daily${{ matrix.executable }}" "dist/daily-${{ matrix.asset }}${{ matrix.executable }}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: daily-${{ matrix.asset }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create release and attach binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" release-assets/* --generate-notes --title "$TAG"

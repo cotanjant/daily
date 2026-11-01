@@ -44,3 +44,15 @@ platform details.
 The Astro site in `website/` introduces the commands and links to their docs.
 Run it with `cd website && npm install && npm run dev`; build it with
 `npm run build`.
+
+## CI and releases
+
+Pull requests and pushes to `main` run formatting and compile checks and build
+release binaries for Linux, macOS, and Windows. Push a version tag such as
+`v0.1.0` to build the same binaries and create a GitHub Release with the
+platform executables attached. Keep the tag version in sync with `Cargo.toml`:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```

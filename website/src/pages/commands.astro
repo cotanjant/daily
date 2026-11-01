@@ -3,7 +3,7 @@ import SiteLayout from "../layouts/SiteLayout.astro";
 
 const commands = [
   ["daily download URL PATH [--yes]", "Download HTTP or HTTPS files. Interactive terminals show MB and speed; a progress bar and percentage appear when the server reports the total size. Existing files prompt before replacement."],
-  ["daily remind MESSAGE --at RFC3339", "Wait until a timezone-aware timestamp and show a desktop notification. The process must stay running."],
+  ["daily remind MESSAGE [--at RFC3339]", "Open a date and time wheel picker, or pass an exact timestamp for scripts. The process must stay running until the desktop notification appears."],
   ["daily file copy SOURCE DEST [--yes]", "Copy a file. Existing destinations prompt unless --yes is set."],
   ["daily file move SOURCE DEST [--yes]", "Move a file to a destination path. Existing destinations prompt unless --yes is set."],
   ["daily file rename PATH NEW_PATH [--yes]", "Rename a file. Existing destinations prompt unless --yes is set."],

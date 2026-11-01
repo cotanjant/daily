@@ -25,14 +25,27 @@ path. The destination is replaced only after the transfer completes.
 ## Remind
 
 ```bash
-daily remind "Take a break" --at "YYYY-MM-DDTHH:MM:SS+03:00"
+daily remind "Take a break"
 ```
 
-Replace the timestamp with a future RFC 3339 time and timezone. The command
-waits in the foreground, so leave it running until the notification appears.
-Linux requires `notify-send`; macOS uses `osascript`; Windows uses PowerShell.
-An active desktop notification session is required. Closing the process cancels
-the reminder.
+Without `--at`, the command opens a date and time picker in the terminal. It
+starts five minutes from the current local time. Use the left and right arrow
+keys to choose the year, month, day, hour, or minute wheel; use up and down to
+change its value. Press Enter to set the reminder, or Esc or `q` to cancel. The
+year wheel covers the current year through ten years ahead. Times use the local
+timezone; nonexistent times during a timezone change are rejected.
+
+For scripts or a noninteractive process, pass a future RFC 3339 timestamp with
+an explicit timezone:
+
+```bash
+daily remind "Take a break" --at "2030-01-01T09:00:00+03:00"
+```
+
+The command waits in the foreground, so leave it running until the notification
+appears. Linux requires `notify-send`; macOS uses `osascript`; Windows uses
+PowerShell. An active desktop notification session is required. Closing the
+process cancels the reminder.
 
 ## Files
 

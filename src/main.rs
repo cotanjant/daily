@@ -1,9 +1,17 @@
 use anyhow::{Context, Result, bail};
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{
+    DateTime, Datelike, Local, LocalResult, NaiveDate, NaiveDateTime, NaiveTime, TimeZone,
+    Timelike, Utc,
+};
 use clap::{Parser, Subcommand};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{QueueableCommand, cursor};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::{Color as TuiColor, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
@@ -31,12 +39,12 @@ enum Commands {
         #[arg(short, long)]
         yes: bool,
     },
-    /// Wait until a time, then show a desktop notification.
+    /// Set a reminder with the picker or an exact timestamp.
     Remind {
         message: String,
-        /// Future RFC 3339 timestamp with a timezone.
-        #[arg(long)]
-        at: String,
+        /// Future RFC 3339 timestamp for noninteractive use.
+        #[arg(long, value_name = "RFC3339")]
+        at: Option<String>,
     },
     /// Everyday filesystem operations.
     File {
@@ -234,10 +242,320 @@ fn cleanup_error(temp: &TempFile, reason: impl std::fmt::Display) -> anyhow::Err
     }
 }
 
+struct DateTimePicker {
+    value: NaiveDateTime,
+    focus: usize,
+    first_year: i32,
+    error: Option<String>,
+}
+
+impl DateTimePicker {
+    fn new() -> Result<Self> {
+        let initial = Local::now() + chrono::Duration::minutes(5);
+        let time = NaiveTime::from_hms_opt(initial.hour(), initial.minute(), 0)
+            .context("could not choose the initial reminder time")?;
+        Ok(Self {
+            value: initial.date_naive().and_time(time),
+            focus: 3,
+            first_year: Local::now().year(),
+            error: None,
+        })
+    }
+
+    fn adjust(&mut self, delta: i32) {
+        let date = self.value.date();
+        let time = self.value.time();
+        let mut year = date.year();
+        let mut month = date.month() as i32;
+        let mut day = date.day() as i32;
+        let mut hour = time.hour() as i32;
+        let mut minute = time.minute() as i32;
+
+        match self.focus {
+            0 => year = adjust_value(year, delta, self.first_year, self.first_year + 10, false),
+            1 => month = adjust_value(month, delta, 1, 12, true),
+            2 => {
+                day = adjust_value(
+                    day,
+                    delta,
+                    1,
+                    days_in_month(year, month as u32) as i32,
+                    true,
+                )
+            }
+            3 => hour = adjust_value(hour, delta, 0, 23, true),
+            _ => minute = adjust_value(minute, delta, 0, 59, true),
+        }
+
+        day = day.min(days_in_month(year, month as u32) as i32);
+        if let (Some(date), Some(time)) = (
+            NaiveDate::from_ymd_opt(year, month as u32, day as u32),
+            NaiveTime::from_hms_opt(hour as u32, minute as u32, 0),
+        ) {
+            self.value = date.and_time(time);
+        }
+        self.error = None;
+    }
+
+    fn resolve(&self) -> Result<DateTime<Local>> {
+        let now = Local::now();
+        match Local.from_local_datetime(&self.value) {
+            LocalResult::Single(when) if when > now => Ok(when),
+            LocalResult::Single(_) => bail!("choose a time in the future"),
+            LocalResult::Ambiguous(first, second) => {
+                let now = now.timestamp_millis();
+                [first, second]
+                    .into_iter()
+                    .filter(|when| when.timestamp_millis() > now)
+                    .min_by_key(|when| when.timestamp_millis())
+                    .context("choose a time in the future")
+            }
+            LocalResult::None => {
+                bail!("that local time does not exist because of a timezone change")
+            }
+        }
+    }
+}
+
+fn adjust_value(value: i32, delta: i32, min: i32, max: i32, wrap: bool) -> i32 {
+    if wrap {
+        (value - min + delta).rem_euclid(max - min + 1) + min
+    } else {
+        (value + delta).clamp(min, max)
+    }
+}
+
+fn days_in_month(year: i32, month: u32) -> u32 {
+    match month {
+        2 if NaiveDate::from_ymd_opt(year, 2, 29).is_some() => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+
+fn wheel_lines(
+    value: i32,
+    min: i32,
+    max: i32,
+    wrap: bool,
+    width: usize,
+    focused: bool,
+) -> Vec<Line<'static>> {
+    (-2..=2)
+        .map(|offset| {
+            let raw = value + offset;
+            let shown = if wrap {
+                Some((raw - min).rem_euclid(max - min + 1) + min)
+            } else if (min..=max).contains(&raw) {
+                Some(raw)
+            } else {
+                None
+            };
+            let text = shown.map_or_else(String::new, |number| format!("{number:0width$}"));
+            let style = if offset == 0 && focused {
+                Style::default()
+                    .fg(TuiColor::Black)
+                    .bg(TuiColor::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if offset == 0 {
+                Style::default()
+                    .fg(TuiColor::Green)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(TuiColor::DarkGray)
+            };
+            Line::from(Span::styled(text, style))
+        })
+        .collect()
+}
+
+struct Wheel<'a> {
+    area: Rect,
+    label: &'a str,
+    value: i32,
+    min: i32,
+    max: i32,
+    wrap: bool,
+    width: usize,
+    focused: bool,
+}
+
+fn render_wheel(frame: &mut ratatui::Frame, wheel: Wheel<'_>) {
+    let border = if wheel.focused {
+        TuiColor::Cyan
+    } else {
+        TuiColor::DarkGray
+    };
+    let block = Block::default()
+        .title(wheel.label)
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(border));
+    let content = Paragraph::new(wheel_lines(
+        wheel.value,
+        wheel.min,
+        wheel.max,
+        wheel.wrap,
+        wheel.width,
+        wheel.focused,
+    ))
+    .alignment(ratatui::layout::Alignment::Center)
+    .block(block);
+    frame.render_widget(content, wheel.area);
+}
+
+fn draw_picker(frame: &mut ratatui::Frame, picker: &DateTimePicker) {
+    let sections = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Length(1),
+            Constraint::Length(7),
+            Constraint::Length(1),
+            Constraint::Length(7),
+            Constraint::Length(1),
+            Constraint::Length(2),
+        ])
+        .split(frame.area());
+
+    frame.render_widget(
+        Paragraph::new("Choose a reminder date and time")
+            .alignment(ratatui::layout::Alignment::Center)
+            .block(Block::default().borders(Borders::ALL).title("daily remind")),
+        sections[0],
+    );
+    frame.render_widget(
+        Paragraph::new("DATE").style(Style::default().fg(TuiColor::Green)),
+        sections[1],
+    );
+    let date_wheels = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(34),
+            Constraint::Percentage(33),
+            Constraint::Percentage(33),
+        ])
+        .split(sections[2]);
+    let date = picker.value.date();
+    render_wheel(
+        frame,
+        Wheel {
+            area: date_wheels[0],
+            label: "Year",
+            value: date.year(),
+            min: picker.first_year,
+            max: picker.first_year + 10,
+            wrap: false,
+            width: 4,
+            focused: picker.focus == 0,
+        },
+    );
+    render_wheel(
+        frame,
+        Wheel {
+            area: date_wheels[1],
+            label: "Month",
+            value: date.month() as i32,
+            min: 1,
+            max: 12,
+            wrap: true,
+            width: 2,
+            focused: picker.focus == 1,
+        },
+    );
+    render_wheel(
+        frame,
+        Wheel {
+            area: date_wheels[2],
+            label: "Day",
+            value: date.day() as i32,
+            min: 1,
+            max: days_in_month(date.year(), date.month()) as i32,
+            wrap: true,
+            width: 2,
+            focused: picker.focus == 2,
+        },
+    );
+
+    frame.render_widget(
+        Paragraph::new("TIME").style(Style::default().fg(TuiColor::Green)),
+        sections[3],
+    );
+    let time_wheels = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(sections[4]);
+    let time = picker.value.time();
+    render_wheel(
+        frame,
+        Wheel {
+            area: time_wheels[0],
+            label: "Hour",
+            value: time.hour() as i32,
+            min: 0,
+            max: 23,
+            wrap: true,
+            width: 2,
+            focused: picker.focus == 3,
+        },
+    );
+    render_wheel(
+        frame,
+        Wheel {
+            area: time_wheels[1],
+            label: "Minute",
+            value: time.minute() as i32,
+            min: 0,
+            max: 59,
+            wrap: true,
+            width: 2,
+            focused: picker.focus == 4,
+        },
+    );
+
+    let status = picker
+        .error
+        .as_deref()
+        .unwrap_or("←/→ choose a wheel   ↑/↓ change value   Enter set   Esc/q cancel");
+    frame.render_widget(
+        Paragraph::new(status).alignment(ratatui::layout::Alignment::Center),
+        sections[6],
+    );
+}
+
+fn select_reminder_time() -> Result<Option<DateTime<Local>>> {
+    if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
+        bail!("the date/time picker needs a terminal; pass --at RFC3339 for scripts");
+    }
+    let mut picker = DateTimePicker::new()?;
+    Ok(ratatui::run(
+        |terminal| -> io::Result<Option<DateTime<Local>>> {
+            loop {
+                terminal.draw(|frame| draw_picker(frame, &picker))?;
+                match event::read()? {
+                    Event::Key(key) if key.kind == KeyEventKind::Press => match key.code {
+                        KeyCode::Esc | KeyCode::Char('q') => break Ok(None),
+                        KeyCode::Left => picker.focus = (picker.focus + 4) % 5,
+                        KeyCode::Right => picker.focus = (picker.focus + 1) % 5,
+                        KeyCode::Up => picker.adjust(1),
+                        KeyCode::Down => picker.adjust(-1),
+                        KeyCode::Enter => match picker.resolve() {
+                            Ok(when) => break Ok(Some(when)),
+                            Err(error) => picker.error = Some(error.to_string()),
+                        },
+                        _ => {}
+                    },
+                    _ => {}
+                }
+            }
+        },
+    )?)
+}
+
 fn main() -> Result<()> {
     match Cli::parse().command {
         Commands::Download { url, path, yes } => download(&url, &path, yes),
-        Commands::Remind { message, at } => remind(&message, &at),
+        Commands::Remind { message, at } => remind(&message, at.as_deref()),
         Commands::File { action } => file_command(action),
         Commands::Time { action } => time_command(action),
     }
@@ -421,16 +739,28 @@ fn run_notification(command: &mut Command, context: &str) -> Result<()> {
     Ok(())
 }
 
-fn remind(message: &str, at: &str) -> Result<()> {
-    let when = DateTime::parse_from_rfc3339(at)
-        .context("--at must be an RFC 3339 timestamp with a timezone")?;
+fn remind(message: &str, at: Option<&str>) -> Result<()> {
+    let when = if let Some(at) = at {
+        let when = DateTime::parse_from_rfc3339(at)
+            .context("--at must be an RFC 3339 timestamp with a timezone")?
+            .with_timezone(&Local);
+        if when <= Local::now() {
+            bail!("reminder time must be in the future");
+        }
+        when
+    } else if let Some(when) = select_reminder_time()? {
+        when
+    } else {
+        println!("Reminder cancelled.");
+        return Ok(());
+    };
     let delay = (when.with_timezone(&Utc) - Utc::now())
         .to_std()
         .context("reminder time must be in the future")?;
     if io::stdout().is_terminal() {
         println!(
             "Reminder set for {}. Keep this process running until it fires.",
-            when.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S %Z")
+            when.format("%Y-%m-%d %H:%M:%S %Z")
         );
     }
     thread::sleep(delay);

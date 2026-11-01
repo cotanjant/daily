@@ -28,23 +28,24 @@ cargo run -- --help
 
 ```bash
 daily download https://example.com/report.pdf report.pdf
-daily remind "Take a break" --at "YYYY-MM-DDTHH:MM:SS+03:00"
+daily remind "Take a break"
 daily file copy notes.txt notes-backup.txt
 daily file mkdir output/reports
 daily time duration 3665
 ```
 
-Replace the reminder timestamp with a future RFC 3339 time. Use `daily --help`
-or `daily <command> --help` for options. Interactive downloads show transferred
+`daily remind` opens an interactive date and time picker. Use `--at RFC3339` to
+provide an exact future timestamp in scripts. Use `daily --help` or
+`daily <command> --help` for options. Interactive downloads show transferred
 size and speed. When the server reports the total size, the display also shows
 a progress bar and percentage. Existing files prompt before replacement; pass
 `--yes` to replace without prompting. A failed transfer leaves an existing
 destination intact and removes its temporary file when possible.
 
-`daily remind` waits in the foreground until the requested RFC 3339 time. Keep
-the process running. It uses `notify-send` on Linux and `osascript` on macOS;
-Windows support uses PowerShell. See the [usage guide](docs/usage.md) for
-platform details.
+The reminder waits in the foreground until the selected time. Keep the process
+running. It uses `notify-send` on Linux and `osascript` on macOS; Windows
+support uses PowerShell. See the [usage guide](docs/usage.md) for picker controls
+and platform details.
 
 ## Website
 

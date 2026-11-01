@@ -22,8 +22,8 @@ import SiteLayout from "../layouts/SiteLayout.astro";
       <pre><span class="comment"># download a file</span>
 <span class="prompt">$</span> daily download https://example.com/report.pdf report.pdf
 
-<span class="comment"># replace with a future RFC 3339 time</span>
-<span class="prompt">$</span> daily remind "Take a break" --at "YYYY-MM-DDTHH:MM:SS+03:00"
+<span class="comment"># choose a date and time in the wheel picker</span>
+<span class="prompt">$</span> daily remind "Take a break"
 
 <span class="comment"># format a duration</span>
 <span class="prompt">$</span> daily time duration 3665
@@ -39,7 +39,7 @@ import SiteLayout from "../layouts/SiteLayout.astro";
       </div>
       <div class="grid">
         <article class="card"><span class="card-icon">01 / download</span><h3>Track a download</h3><p>See progress, transfer speed, and file size while an HTTP or HTTPS download runs.</p></article>
-        <article class="card"><span class="card-icon">02 / remind</span><h3>Set a reminder</h3><p>Wait for a time and get a desktop notification from the running command.</p></article>
+        <article class="card"><span class="card-icon">02 / remind</span><h3>Set a reminder</h3><p>Choose a date and time with the terminal wheel picker, then get a desktop notification.</p></article>
         <article class="card"><span class="card-icon">03 / file + time</span><h3>Manage common tasks</h3><p>Copy, move, rename, create directories, and format dates or durations.</p></article>
       </div>
     </div>

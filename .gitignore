@@ -8,3 +8,4 @@ __pycache__/
 *.dylib
 /website/node_modules/
 /website/dist/
+/website/.astro/

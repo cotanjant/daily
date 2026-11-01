@@ -66,7 +66,7 @@ daily.cancel_reminder(reminder_id)
 Paths accept strings and `pathlib.Path` objects. See the [usage guide](docs/usage.md)
 for function signatures, examples, and platform notes. The project architecture
 and feature development workflow are in [docs/architecture.md](docs/architecture.md)
-and [docs/feature-workflow.md](docs/feature-workflow.md).
+and [AGENTS.md](AGENTS.md) for the feature workflow.
 
 YouTube downloads are not included. Supporting YouTube reliably requires a
 dedicated downloader implementation and ongoing compatibility work.

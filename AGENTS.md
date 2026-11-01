@@ -23,7 +23,11 @@ relevant pages in `docs/` before making public API changes.
 - Keep terminal output out of redirected/noninteractive runs unless explicitly
   requested by the API.
 - Update `README.md` and `docs/usage.md` whenever public behavior changes.
+- Update `website/` pages when installation, API, or user-facing behavior
+  changes; keep the site copy aligned with the README and usage guide.
 - Keep `Cargo.toml` and `Cargo.lock` in sync when Rust dependencies change.
+- Keep `website/package.json` and its lockfile in sync when website dependencies
+  change.
 - Do not delete or overwrite unrelated user files or generated download files.
 
 ## Feature workflow

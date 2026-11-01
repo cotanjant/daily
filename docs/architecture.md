@@ -11,6 +11,9 @@
   scheduled worker entry point.
 - `Cargo.toml`, `pyproject.toml`, and `Cargo.lock` define the Rust crate, Python
   package, and pinned Rust dependency graph. Maturin builds the mixed project.
+- `website/` contains the static Astro site, with project, install, API, and
+  documentation pages. Dependabot checks the Cargo, Python, npm, and GitHub
+  Actions dependency sources each week.
 - `README.md` is the project overview; `docs/usage.md` explains public APIs.
 
 Use Rust for synchronous, portable operations that benefit from the native

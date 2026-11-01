@@ -1,0 +1,52 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+---
+
+<SiteLayout
+  title="Everyday tools for Python"
+  description="Small, ready-to-use scripting helpers for downloads, reminders, files, and time, powered by Rust."
+  current="home"
+>
+  <section class="shell hero">
+    <div>
+      <p class="eyebrow">Python API · Rust implementation</p>
+      <h1>Everyday helpers for <span>Python scripts.</span></h1>
+      <p class="lead">Download files, schedule reminders, manage paths, and format time with a small importable library.</p>
+      <div class="actions">
+        <a class="button-primary" href="/install/">Install daily</a>
+        <a class="button-link" href="/docs/">Read the docs →</a>
+      </div>
+    </div>
+    <div class="terminal" aria-label="Python usage example">
+      <div class="terminal-head"><span class="dots">● ● ●</span> your_script.py</div>
+      <pre><span class="prompt">&gt;&gt;&gt;</span> from datetime import datetime, timedelta, timezone
+<span class="prompt">&gt;&gt;&gt;</span> import daily
+<span class="prompt">&gt;&gt;&gt;</span> daily.download_url("https://example.com/report.pdf", "report.pdf")
+<span class="prompt">&gt;&gt;&gt;</span> when = datetime.now(timezone.utc) + timedelta(days=1)
+<span class="prompt">&gt;&gt;&gt;</span> daily.remind_me("ship it", when)
+<span class="prompt">&gt;&gt;&gt;</span> daily.format_duration(3665)
+'1h 1m 5s'</pre>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="shell">
+      <div class="section-head">
+        <div><p class="eyebrow">Functions</p><h2>Common scripting tasks.</h2></div>
+        <p>One import gives your scripts a few useful shortcuts, with Rust handling the native work.</p>
+      </div>
+      <div class="grid">
+        <article class="card"><span class="card-icon">01 / fetch</span><h3>Download with feedback</h3><p>HTTP and HTTPS downloads show progress, transfer speed, and MB in an interactive terminal.</p></article>
+        <article class="card"><span class="card-icon">02 / remember</span><h3>Set a real reminder</h3><p>Schedule a desktop notification that can fire after the Python process exits.</p></article>
+        <article class="card"><span class="card-icon">03 / tidy</span><h3>Handle files and time</h3><p>Copy, move, rename, create directories, and make dates easier to read.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="shell install-band">
+      <div><p class="eyebrow">Get started</p><h2 class="install-title">Install from the source checkout.</h2><p>Python 3.10+ · built with Rust and maturin</p></div>
+      <a class="button-primary" href="/install/">See installation steps</a>
+    </div>
+  </section>
+</SiteLayout>

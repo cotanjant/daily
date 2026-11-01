@@ -1,0 +1,27 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+---
+
+<SiteLayout title="Install" description="Install daily from source with Python, Rust, and maturin." current="install">
+  <section class="shell page-head">
+    <p class="eyebrow">Install</p>
+    <h1>Up and running in a minute.</h1>
+    <p>`daily` is currently installed from the source checkout. Build the Rust extension into your active Python environment with maturin.</p>
+  </section>
+  <article class="shell article">
+    <h2>Requirements</h2>
+    <ul><li>Python 3.10 or newer</li><li>Rust and Cargo</li><li>Node.js is only needed to work on this website</li></ul>
+    <h2>Build and install locally</h2>
+    <pre><code>git clone https://github.com/cotanjant/daily.git
+cd daily
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install maturin
+maturin develop</code></pre>
+    <p>On Windows PowerShell, activate the environment with <code>.venv\Scripts\Activate.ps1</code>. The package imports as <code>daily</code>.</p>
+    <h2>Build a wheel</h2>
+    <pre><code>maturin build --release
+python -m pip install target/wheels/&lt;wheel-name&gt;.whl</code></pre>
+    <p>See the <a href="https://github.com/cotanjant/daily/blob/main/docs/usage.md">usage guide</a> for the available functions.</p>
+  </article>
+</SiteLayout>

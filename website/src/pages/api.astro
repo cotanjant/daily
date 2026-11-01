@@ -1,0 +1,32 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const functions = [
+  ["download_url(url, path, overwrite=None)", "Download HTTP or HTTPS files. Interactive terminals show percentage, MB, and MB/s. Existing files prompt before replacement."],
+  ["remind_me(message, when)", "Schedule a persistent desktop reminder using a timezone-aware Python datetime. Returns an ID."],
+  ["list_reminders() · cancel_reminder(id)", "List pending reminders or cancel one by its ID."],
+  ["copy_file(source, destination, overwrite=False)", "Copy a file. Existing destinations are protected unless overwrite is enabled."],
+  ["move_file(source, destination, overwrite=False)", "Move a file to a destination path."],
+  ["rename_file(path, new_path, overwrite=False)", "Rename a file."],
+  ["create_directory(path, parents=True, exist_ok=True)", "Create a directory and, by default, missing parent directories."],
+  ["format_time(value, format) · parse_time(value, format)", "Format RFC 3339 timestamps or parse naive datetime strings as UTC."],
+  ["format_duration(seconds)", "Turn a duration in seconds into a compact string such as 1h 5m."],
+];
+---
+
+<SiteLayout title="API" description="Public Python API reference for daily utilities." current="api">
+  <section class="shell page-head">
+    <p class="eyebrow">API reference</p>
+    <h1>Small calls. Clear outcomes.</h1>
+    <p>Import the helpers from <code>daily</code>. Paths accept strings or <code>pathlib.Path</code> objects.</p>
+  </section>
+  <article class="shell article">
+    {functions.map(([name, description]) => (
+      <section>
+        <h2><code>{name}</code></h2>
+        <p>{description}</p>
+      </section>
+    ))}
+    <p>For full examples and platform notes, read the <a href="https://github.com/cotanjant/daily/blob/main/docs/usage.md">usage guide</a>.</p>
+  </article>
+</SiteLayout>

@@ -70,3 +70,15 @@ and [docs/feature-workflow.md](docs/feature-workflow.md).
 
 YouTube downloads are not included. Supporting YouTube reliably requires a
 dedicated downloader implementation and ongoing compatibility work.
+
+## Website
+
+The Astro site lives in `website/`. Run it locally with Node.js:
+
+```bash
+cd website
+npm install
+npm run dev
+```
+
+Build the static site with `npm run build`.

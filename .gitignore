@@ -6,3 +6,5 @@ __pycache__/
 *.so
 *.pyd
 *.dylib
+/website/node_modules/
+/website/dist/

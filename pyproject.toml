@@ -1,0 +1,17 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "daily-rs"
+version = "0.1.0"
+description = "Everyday scripting utilities for Python, powered by Rust"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["utilities", "scripting", "rust"]
+
+[tool.maturin]
+python-source = "python"
+module-name = "daily._daily"
+features = ["pyo3/extension-module"]

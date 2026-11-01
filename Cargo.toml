@@ -1,0 +1,16 @@
+[package]
+name = "daily"
+version = "0.1.0"
+edition = "2024"
+description = "Everyday Python utilities powered by Rust"
+license = "MIT"
+
+[lib]
+name = "_daily"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+chrono = "0.4"
+crossterm = "0.28"
+pyo3 = { version = "0.26", features = ["extension-module"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }

@@ -1,0 +1,8 @@
+/target
+__pycache__/
+*.py[cod]
+/dist
+/.venv
+*.so
+*.pyd
+*.dylib

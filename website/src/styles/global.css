@@ -61,7 +61,7 @@ h1 span { color: var(--green); }
 .page-head { padding: 72px 0 38px; border-bottom: 1px solid var(--line); }
 .page-head h1 { font-size: clamp(2.7rem, 6vw, 4.4rem); margin: 12px 0; }
 .page-head p { max-width: 680px; color: var(--muted); line-height: 1.8; margin: 0; }
-.doc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 42px 0 80px; }
+.doc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 42px 0 80px; }
 .doc-card { display: block; padding: 25px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-decoration: none; transition: border-color .18s, transform .18s; }
 .doc-card:hover { border-color: var(--green); transform: translateY(-2px); }
 .doc-card .eyebrow { font-size: .7rem; }

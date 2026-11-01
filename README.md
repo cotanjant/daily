@@ -48,8 +48,10 @@ daily.cancel_reminder(reminder_id)
 
 - `download_url(url, path, overwrite=None)` downloads HTTP or HTTPS resources.
   Interactive terminals show a colored progress bar, percentage, and
-  transferred size in MB if the server reports the file size. Existing
-  destinations prompt for `y` or `n`;
+  transferred size in MB and average transfer speed in MB/s if the server
+  reports the file size. If a network interruption occurs, the partial file is
+  removed and the error recommends checking the connection and retrying.
+  Existing destinations prompt for `y` or `n`;
   pass `overwrite=True` to replace without prompting, or `False` to decline
   without prompting. A declined prompt returns `None`.
 - `remind_me(message, when)`, `list_reminders()`, and

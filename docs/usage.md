@@ -24,10 +24,17 @@ the file or `n` to cancel. If the process is noninteractive, the default raises
 `FileExistsError` instead of waiting for input. Set `overwrite=True` to replace
 automatically or `overwrite=False` to refuse automatically.
 
-The colored progress bar is only printed to an interactive terminal. It
-shows a percentage and transferred size in MB when the server provides a
-content length. Without a content length, it shows the received size in MB.
-In scripts that redirect output, the download remains quiet.
+The colored progress bar is only printed to an interactive terminal. It shows
+a percentage, transferred size in MB, and average speed in MB/s when the server
+provides a content length. Without a content length, it shows the received size
+and average speed. In scripts that redirect output, the download remains
+quiet.
+
+Downloads are written to a temporary file and moved into place only after a
+successful transfer. If the connection is interrupted or the response ends
+before its advertised size, the temporary file is removed. The raised
+`ConnectionError` explains that cleanup occurred and recommends checking the
+connection before retrying.
 
 ## Reminders
 

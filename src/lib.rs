@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDateTime};
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{QueueableCommand, cursor};
-use pyo3::exceptions::{PyFileExistsError, PyValueError};
+use pyo3::exceptions::{PyConnectionError, PyFileExistsError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use std::fs::{self, OpenOptions};
@@ -114,7 +114,12 @@ fn confirm_overwrite(path: &PathBuf, overwrite: Option<bool>) -> PyResult<bool> 
     }
 }
 
-fn render_progress(stdout: &mut io::Stdout, received: u64, total: Option<u64>) -> io::Result<()> {
+fn render_progress(
+    stdout: &mut io::Stdout,
+    received: u64,
+    total: Option<u64>,
+    speed_mb_per_second: f64,
+) -> io::Result<()> {
     const WIDTH: usize = 30;
     const MB: f64 = 1_000_000.0;
     stdout.queue(cursor::MoveToColumn(0))?;
@@ -129,20 +134,37 @@ fn render_progress(stdout: &mut io::Stdout, received: u64, total: Option<u64>) -
             .queue(Print("-".repeat(WIDTH - filled)))?
             .queue(ResetColor)?
             .queue(Print(format!(
-                "] {percent:3}%  {:.2} MB / {:.2} MB",
+                "] {percent:3}%  {:.2} MB / {:.2} MB  {:.2} MB/s",
                 received as f64 / MB,
-                total as f64 / MB
+                total as f64 / MB,
+                speed_mb_per_second
             )))?;
     } else {
         stdout
             .queue(SetForegroundColor(Color::Yellow))?
             .queue(Print(format!(
-                "Downloaded {:.2} MB (size unknown)",
-                received as f64 / MB
+                "Downloaded {:.2} MB at {:.2} MB/s (size unknown)",
+                received as f64 / MB,
+                speed_mb_per_second
             )))?
             .queue(ResetColor)?;
     }
     stdout.queue(Clear(ClearType::UntilNewLine))?.flush()
+}
+
+fn interrupted_download(stdout: &mut io::Stdout, show_progress: bool, error: &str) -> PyErr {
+    let message = format!(
+        "download interrupted: {error}. The partial file was removed. Check your internet connection and try again."
+    );
+    if show_progress {
+        let _ = stdout
+            .queue(Print("\n"))
+            .and_then(|out| out.queue(SetForegroundColor(Color::Red)))
+            .and_then(|out| out.queue(Print(format!("{message}\n"))))
+            .and_then(|out| out.queue(ResetColor))
+            .and_then(|out| out.flush());
+    }
+    PyConnectionError::new_err(message)
 }
 
 #[pyfunction]
@@ -153,16 +175,18 @@ fn download_url(url: &str, path: PathBuf, overwrite: Option<bool>) -> PyResult<O
         return Ok(None);
     }
     let path = checked_destination(path, overwrite)?;
+    let show_progress = io::stdout().is_terminal();
+    let mut stdout = io::stdout();
     let mut response = reqwest::blocking::get(url)
-        .map_err(|error| PyValueError::new_err(format!("download failed: {error}")))?
+        .map_err(|error| interrupted_download(&mut stdout, show_progress, &error.to_string()))?
         .error_for_status()
         .map_err(|error| PyValueError::new_err(format!("download failed: {error}")))?;
     let (temporary_path, mut file) = temporary_download(&path)?;
     let total = response.content_length();
-    let show_progress = io::stdout().is_terminal();
-    let mut stdout = io::stdout();
     let mut received = 0u64;
     let mut last_update = Instant::now() - Duration::from_secs(1);
+    let mut speed_sample_time = Instant::now();
+    let mut speed_sample_received = 0u64;
     let mut buffer = [0u8; 64 * 1024];
     loop {
         let count = match response.read(&mut buffer) {
@@ -170,11 +194,12 @@ fn download_url(url: &str, path: PathBuf, overwrite: Option<bool>) -> PyResult<O
             Ok(count) => count,
             Err(error) => {
                 drop(file);
-                if show_progress {
-                    let _ = stdout.queue(Print("\n")).and_then(|out| out.flush());
-                }
                 let _ = fs::remove_file(&temporary_path);
-                return Err(PyValueError::new_err(format!("download failed: {error}")));
+                return Err(interrupted_download(
+                    &mut stdout,
+                    show_progress,
+                    &error.to_string(),
+                ));
             }
         };
         if let Err(error) = file.write_all(&buffer[..count]) {
@@ -187,12 +212,28 @@ fn download_url(url: &str, path: PathBuf, overwrite: Option<bool>) -> PyResult<O
         }
         received += count as u64;
         if show_progress && last_update.elapsed() >= Duration::from_millis(100) {
-            let _ = render_progress(&mut stdout, received, total);
+            let elapsed = speed_sample_time.elapsed().as_secs_f64().max(0.001);
+            let speed_mb_per_second =
+                (received - speed_sample_received) as f64 / elapsed / 1_000_000.0;
+            let _ = render_progress(&mut stdout, received, total, speed_mb_per_second);
             last_update = Instant::now();
+            speed_sample_time = last_update;
+            speed_sample_received = received;
         }
     }
+    if total.is_some_and(|expected| received < expected) {
+        drop(file);
+        let _ = fs::remove_file(&temporary_path);
+        return Err(interrupted_download(
+            &mut stdout,
+            show_progress,
+            "the server connection closed before the full file arrived",
+        ));
+    }
     if show_progress {
-        let _ = render_progress(&mut stdout, received, total);
+        let elapsed = speed_sample_time.elapsed().as_secs_f64().max(0.001);
+        let speed_mb_per_second = (received - speed_sample_received) as f64 / elapsed / 1_000_000.0;
+        let _ = render_progress(&mut stdout, received, total, speed_mb_per_second);
         let _ = stdout.queue(Print("\n")).and_then(|out| out.flush());
     }
     if let Err(error) = file.flush() {

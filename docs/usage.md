@@ -24,9 +24,10 @@ the file or `n` to cancel. If the process is noninteractive, the default raises
 `FileExistsError` instead of waiting for input. Set `overwrite=True` to replace
 automatically or `overwrite=False` to refuse automatically.
 
-The progress bar is only printed to an interactive terminal. It shows a
-percentage when the server provides a content length, and received bytes when
-it does not. In scripts that redirect output, the download remains quiet.
+The colored progress bar is only printed to an interactive terminal. It
+shows a percentage and transferred size in MB when the server provides a
+content length. Without a content length, it shows the received size in MB.
+In scripts that redirect output, the download remains quiet.
 
 ## Reminders
 

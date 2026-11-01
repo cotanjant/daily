@@ -7,6 +7,13 @@ relevant pages in `docs/` before making public API changes.
 
 - **DO NOT FORGET TO UPDATE DOCUMENTATION AFTER ADDING NEW FEATURE.** Update the
   README and the relevant usage or architecture docs in the same change.
+- **YOU HAVE TO COMMIT AFTER ADDING A NEW FEATURE.** Include the feature and its
+  documentation in a focused commit.
+- Use clear Conventional Commit subjects such as `feat(download): show MB
+  progress` or `docs: explain reminder setup`. Keep the subject concise and
+  imperative; use the body to explain important behavior or reasoning. Avoid
+  vague subjects such as `updates` or `misc fixes`, and keep unrelated changes
+  in separate commits.
 - Python imports the package as `daily`; the Rust extension is `daily._daily`.
 - Rust/PyO3 code belongs in `src/lib.rs`. Python orchestration belongs under
   `python/daily/`. Re-export public helpers from `python/daily/__init__.py`.

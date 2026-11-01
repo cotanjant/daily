@@ -116,6 +116,7 @@ fn confirm_overwrite(path: &PathBuf, overwrite: Option<bool>) -> PyResult<bool> 
 
 fn render_progress(stdout: &mut io::Stdout, received: u64, total: Option<u64>) -> io::Result<()> {
     const WIDTH: usize = 30;
+    const MB: f64 = 1_000_000.0;
     stdout.queue(cursor::MoveToColumn(0))?;
     if let Some(total) = total.filter(|total| *total > 0) {
         let percent = ((received.saturating_mul(100) / total).min(100)) as usize;
@@ -127,11 +128,18 @@ fn render_progress(stdout: &mut io::Stdout, received: u64, total: Option<u64>) -
             .queue(SetForegroundColor(Color::DarkGrey))?
             .queue(Print("-".repeat(WIDTH - filled)))?
             .queue(ResetColor)?
-            .queue(Print(format!("] {percent:3}%  {received}/{total} bytes")))?;
+            .queue(Print(format!(
+                "] {percent:3}%  {:.2} MB / {:.2} MB",
+                received as f64 / MB,
+                total as f64 / MB
+            )))?;
     } else {
         stdout
             .queue(SetForegroundColor(Color::Yellow))?
-            .queue(Print(format!("Downloaded {received} bytes (size unknown)")))?
+            .queue(Print(format!(
+                "Downloaded {:.2} MB (size unknown)",
+                received as f64 / MB
+            )))?
             .queue(ResetColor)?;
     }
     stdout.queue(Clear(ClearType::UntilNewLine))?.flush()

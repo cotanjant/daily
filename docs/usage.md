@@ -1,81 +1,55 @@
-# Usage guide
+# Command guide
 
-The package imports as `daily`. Build and install it into the active Python
-environment with `maturin develop` from the repository root; setup steps are in
-the [README](../README.md).
+`daily` is one Rust executable with subcommands. Build it with `cargo install
+--path .`, or run it from the repository with `cargo run -- <command>`.
 
-## Download a file
+## Download
 
-```python
-from pathlib import Path
-import daily
-
-result = daily.download_url(
-    "https://example.com/report.pdf",
-    Path("downloads/report.pdf"),
-)
-if result is None:
-    print("Download cancelled")
+```bash
+daily download https://example.com/report.pdf downloads/report.pdf
+daily download https://example.com/report.pdf report.pdf --yes
 ```
 
-When the destination already exists and stdin/stdout are terminals, `daily`
-prints a colored prompt with the full destination path. Answer `y` to replace
-the file or `n` to cancel. If the process is noninteractive, the default raises
-`FileExistsError` instead of waiting for input. Set `overwrite=True` to replace
-automatically or `overwrite=False` to refuse automatically.
+The command shows a colored progress bar, percentage, transferred MB, and
+current sampled speed in MB/s in an interactive terminal. It stays quiet when
+output is redirected. Existing destinations prompt for `y` or `n`; `--yes`
+replaces without prompting. In a noninteractive process an existing file is
+preserved and the command exits with an error unless `--yes` is set.
 
-The colored progress bar is only printed to an interactive terminal. It shows
-a percentage, transferred size in MB, and average speed in MB/s when the server
-provides a content length. Without a content length, it shows the received size
-and average speed. In scripts that redirect output, the download remains
-quiet.
+Downloads stream to a temporary sibling file. A failed or truncated transfer
+removes that file and tells the user to check the connection and retry. On
+success the completed file is moved into place.
 
-Downloads are written to a temporary file and moved into place only after a
-successful transfer. If the connection is interrupted or the response ends
-before its advertised size, the temporary file is removed. The raised
-`ConnectionError` explains that cleanup occurred and recommends checking the
-connection before retrying.
+## Remind
 
-## Reminders
-
-```python
-from datetime import datetime, timedelta, timezone
-import daily
-
-reminder_id = daily.remind_me(
-    "Take a break",
-    datetime.now(timezone.utc) + timedelta(minutes=30),
-)
-
-for reminder in daily.list_reminders():
-    print(reminder["id"], reminder["when"], reminder["message"])
-
-daily.cancel_reminder(reminder_id)
+```bash
+daily remind "Take a break" --at 2026-11-01T18:30:00+03:00
 ```
 
-Reminders are persisted and delegated to the current user's OS scheduler. The
-user's Python environment must remain installed so the scheduled worker can
-run. Linux requires a systemd user session and `notify-send`; macOS uses
-LaunchAgents and Notification Center; Windows uses Task Scheduler and a desktop
-notification, with up to one minute of scheduler delay. Delivery requires an
-available desktop session.
+`--at` requires an RFC 3339 timestamp with a timezone and a future time. The
+command waits in the foreground, so leave it running until the notification
+appears. Linux requires `notify-send`; macOS uses `osascript`; Windows uses
+PowerShell. Closing the process cancels the reminder.
 
-## Files and time
+## Files
 
-```python
-from pathlib import Path
-import daily
-
-daily.copy_file(Path("input.txt"), Path("backup.txt"))
-daily.move_file(Path("backup.txt"), Path("archive/backup.txt"))
-daily.rename_file(Path("archive/backup.txt"), Path("archive/input.txt"))
-daily.create_directory(Path("output/reports"), parents=True, exist_ok=True)
-
-print(daily.format_time("2026-11-01T12:30:00+00:00", "%Y-%m-%d %H:%M"))
-print(daily.parse_time("2026-11-01 12:30", "%Y-%m-%d %H:%M"))
-print(daily.format_duration(3665))  # 1h 1m 5s
+```bash
+daily file copy source.txt backup.txt
+daily file move backup.txt archive/backup.txt
+daily file rename archive/backup.txt archive/source.txt
+daily file mkdir output/reports
 ```
 
-`parse_time` accepts a naive datetime string and interprets it as UTC. Its
-`format` argument uses chrono/strftime directives. File functions return the
-destination path on success and raise Python exceptions for filesystem errors.
+Copy, move, and rename prompt before replacing an existing file. Add `--yes` to
+replace without prompting. `mkdir` creates missing parents.
+
+## Time
+
+```bash
+daily time format 2026-11-01T12:30:00+00:00 "%Y-%m-%d %H:%M"
+daily time parse "2026-11-01 12:30" "%Y-%m-%d %H:%M"
+daily time duration 3665
+```
+
+`format` accepts RFC 3339 and chrono/strftime directives. `parse` interprets a
+naive datetime as UTC. `duration` prints a compact value such as `1h 1m 5s`.

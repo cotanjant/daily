@@ -1,0 +1,32 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+
+const commands = [
+  ["daily download URL PATH [--yes]", "Download HTTP or HTTPS files. Interactive terminals show percentage, MB, and MB/s. Existing files prompt before replacement."],
+  ["daily remind MESSAGE --at RFC3339", "Wait until a timezone-aware timestamp and show a desktop notification. The process must stay running."],
+  ["daily file copy SOURCE DEST [--yes]", "Copy a file. Existing destinations prompt unless --yes is set."],
+  ["daily file move SOURCE DEST [--yes]", "Move a file to a destination path."],
+  ["daily file rename PATH NEW_PATH [--yes]", "Rename a file."],
+  ["daily file mkdir PATH", "Create a directory and missing parent directories."],
+  ["daily time format VALUE FORMAT", "Format an RFC 3339 timestamp with chrono/strftime directives."],
+  ["daily time parse VALUE FORMAT", "Parse a naive datetime string and interpret it as UTC."],
+  ["daily time duration SECONDS", "Print a compact duration such as 1h 5m."],
+];
+---
+
+<SiteLayout title="Commands" description="Command reference for the daily Rust CLI collection." current="commands">
+  <section class="shell page-head">
+    <p class="eyebrow">Command reference</p>
+    <h1>Commands and options.</h1>
+    <p>Run <code>daily --help</code> for the full command tree.</p>
+  </section>
+  <article class="shell article">
+    {commands.map(([name, description]) => (
+      <section>
+        <h2><code>{name}</code></h2>
+        <p>{description}</p>
+      </section>
+    ))}
+    <p>For full examples and platform notes, read the <a href="https://github.com/cotanjant/daily/blob/main/docs/usage.md">command guide</a>.</p>
+  </article>
+</SiteLayout>

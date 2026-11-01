@@ -2,15 +2,12 @@
 name = "daily"
 version = "0.1.0"
 edition = "2024"
-description = "Everyday Python utilities powered by Rust"
+description = "A collection of everyday command-line tools"
 license = "MIT"
 
-[lib]
-name = "_daily"
-crate-type = ["cdylib", "rlib"]
-
 [dependencies]
+anyhow = "1"
 chrono = "0.4"
+clap = { version = "4", features = ["derive"] }
 crossterm = "0.28"
-pyo3 = { version = "0.26", features = ["extension-module"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }

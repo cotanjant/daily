@@ -2,17 +2,17 @@
 import SiteLayout from "../../layouts/SiteLayout.astro";
 
 const docs = [
-  { kind: "Start here", title: "Usage guide", href: "https://github.com/cotanjant/daily/blob/main/docs/usage.md", text: "Examples for downloads, reminders, filesystem helpers, and time functions." },
-  { kind: "Project map", title: "Architecture", href: "https://github.com/cotanjant/daily/blob/main/docs/architecture.md", text: "How the Python package and Rust extension fit together." },
-  { kind: "Overview", title: "README", href: "https://github.com/cotanjant/daily/blob/main/README.md", text: "Install the package locally and see the available helpers." },
+  { kind: "Start here", title: "Command guide", href: "https://github.com/cotanjant/daily/blob/main/docs/usage.md", text: "Examples for downloads, reminders, filesystem commands, and time tools." },
+  { kind: "Project map", title: "Architecture", href: "https://github.com/cotanjant/daily/blob/main/docs/architecture.md", text: "How the Rust CLI and Astro website fit together." },
+  { kind: "Overview", title: "README", href: "https://github.com/cotanjant/daily/blob/main/README.md", text: "Install the command and see example workflows." },
 ];
 ---
 
-<SiteLayout title="Documentation" description="Guides and API documentation for the daily Python utility library." current="docs">
+<SiteLayout title="Documentation" description="Guides and command documentation for the daily Rust CLI collection." current="docs">
   <section class="shell page-head">
     <p class="eyebrow">Documentation</p>
     <h1>Find your way around.</h1>
-    <p>Start with the usage guide for examples, or read how the Python package and Rust extension fit together.</p>
+    <p>Start with the command guide, or read how the CLI and website fit together.</p>
   </section>
   <section class="shell doc-grid">
     {docs.map((doc) => (

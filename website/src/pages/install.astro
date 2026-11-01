@@ -2,18 +2,17 @@
 import SiteLayout from "../layouts/SiteLayout.astro";
 ---
 
-<SiteLayout title="Install" description="Install the daily Rust command-line tools with Cargo." current="install">
+<SiteLayout title="Install" description="Install daily from a prebuilt release or build it with Cargo." current="install">
   <section class="shell page-head">
     <p class="eyebrow">Install</p>
     <h1>Install the command.</h1>
-    <p>Build the executable with Cargo and use its subcommands from your terminal.</p>
+    <p>Download a release binary or build the executable with Cargo.</p>
   </section>
   <article class="shell article">
-    <h2>Requirements</h2>
-    <ul><li>Rust and Cargo</li><li>Node.js is only needed to work on this website</li></ul>
     <h2>Download a prebuilt release</h2>
-    <p><a href="https://github.com/cotanjant/daily/releases/latest">Get the latest release</a> for Linux, macOS, or Windows. On Linux and macOS, mark the downloaded binary as executable with <code>chmod +x daily-*</code>, then move it to a directory on your <code>PATH</code>.</p>
-    <h2>Install from this checkout</h2>
+    <p><a href="https://github.com/cotanjant/daily/releases/latest">Get the latest release</a> for Linux x86_64, macOS on Apple silicon, or Windows x86_64. This does not require Rust. On Linux and macOS, mark the downloaded binary as executable with <code>chmod +x daily-*</code>, then move it to a directory on your <code>PATH</code>.</p>
+    <h2>Build from a checkout</h2>
+    <p>Install Rust and Cargo first. Node.js is only needed to work on this website.</p>
     <pre><code>git clone https://github.com/cotanjant/daily.git
 cd daily
 cargo install --path .</code></pre>

@@ -22,8 +22,8 @@ import SiteLayout from "../layouts/SiteLayout.astro";
       <pre><span class="comment"># download a file</span>
 <span class="prompt">$</span> daily download https://example.com/report.pdf report.pdf
 
-<span class="comment"># set a reminder</span>
-<span class="prompt">$</span> daily remind "Take a break" --at 2026-11-01T18:30:00+03:00
+<span class="comment"># replace with a future RFC 3339 time</span>
+<span class="prompt">$</span> daily remind "Take a break" --at "YYYY-MM-DDTHH:MM:SS+03:00"
 
 <span class="comment"># format a duration</span>
 <span class="prompt">$</span> daily time duration 3665
@@ -47,7 +47,11 @@ import SiteLayout from "../layouts/SiteLayout.astro";
 
   <section class="section">
     <div class="shell install-band">
-      <div><p class="eyebrow">Get started</p><h2 class="install-title">Install with Cargo.</h2><p>Rust toolchain required</p></div>
+      <div>
+        <p class="eyebrow">Get started</p>
+        <h2 class="install-title">Download a release or build with Cargo.</h2>
+        <p>Rust is needed only for building from source.</p>
+      </div>
       <a class="button-primary" href="/install/">See installation steps</a>
     </div>
   </section>

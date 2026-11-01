@@ -8,8 +8,11 @@ use std::fs::{self, OpenOptions};
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+
+static TEMP_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Parser)]
 #[command(name = "daily", version, about = "Everyday tools for your terminal")]
@@ -31,7 +34,7 @@ enum Commands {
     /// Wait until a time, then show a desktop notification.
     Remind {
         message: String,
-        /// RFC 3339 timestamp, such as 2026-11-01T18:30:00+03:00.
+        /// Future RFC 3339 timestamp with a timezone.
         #[arg(long)]
         at: String,
     },
@@ -84,6 +87,153 @@ enum TimeCommands {
     Duration { seconds: u64 },
 }
 
+struct TempFile {
+    path: PathBuf,
+    cleanup: bool,
+}
+
+impl TempFile {
+    fn create_near(destination: &Path) -> Result<(Self, fs::File)> {
+        for _ in 0..32 {
+            let path = temporary_sibling_path(destination, "part");
+            match OpenOptions::new().write(true).create_new(true).open(&path) {
+                Ok(file) => {
+                    return Ok((
+                        Self {
+                            path,
+                            cleanup: true,
+                        },
+                        file,
+                    ));
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => {
+                    return Err(error)
+                        .with_context(|| format!("creating temporary file {}", path.display()));
+                }
+            }
+        }
+        bail!(
+            "could not create a temporary file next to {}",
+            destination.display()
+        )
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    fn disarm(mut self) {
+        self.cleanup = false;
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        if self.cleanup {
+            let _ = remove_temporary_path(&self.path);
+        }
+    }
+}
+
+fn remove_temporary_path(path: &Path) -> io::Result<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            #[cfg(windows)]
+            if error.kind() == io::ErrorKind::PermissionDenied {
+                let mut permissions = fs::metadata(path)?.permissions();
+                permissions.set_readonly(false);
+                fs::set_permissions(path, permissions)?;
+                return fs::remove_file(path);
+            }
+            Err(error)
+        }
+    }
+}
+
+fn temporary_sibling_path(path: &Path, suffix: &str) -> PathBuf {
+    let parent = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let id = TEMP_FILE_COUNTER.fetch_add(1, Ordering::Relaxed);
+    parent.join(format!(".daily-{}-{id}.{suffix}", std::process::id()))
+}
+
+fn destination_exists(path: &Path) -> Result<bool> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_dir() => {
+            bail!("destination is a directory: {}", path.display())
+        }
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error).with_context(|| format!("checking {}", path.display())),
+    }
+}
+
+fn same_path(first: &Path, second: &Path) -> bool {
+    first == second
+        || matches!(
+            (fs::canonicalize(first), fs::canonicalize(second)),
+            (Ok(first), Ok(second)) if first == second
+        )
+}
+
+fn install_file(source: &Path, destination: &Path) -> Result<()> {
+    #[cfg(windows)]
+    if destination_exists(destination)? {
+        let backup = temporary_sibling_path(destination, "backup");
+        fs::rename(destination, &backup).with_context(|| {
+            format!("preserving the existing file at {}", destination.display())
+        })?;
+        if let Err(error) = fs::rename(source, destination) {
+            if let Err(restore_error) = fs::rename(&backup, destination) {
+                bail!(
+                    "could not install {}: {error}; the previous file remains at {} because restoring it failed: {restore_error}",
+                    destination.display(),
+                    backup.display()
+                );
+            }
+            return Err(error).with_context(|| format!("installing {}", destination.display()));
+        }
+        if let Err(error) = remove_temporary_path(&backup) {
+            eprintln!(
+                "warning: the new file was installed, but the previous file remains at {}: {error}",
+                backup.display()
+            );
+        }
+        return Ok(());
+    }
+
+    fs::rename(source, destination).with_context(|| format!("installing {}", destination.display()))
+}
+
+fn copy_to_temp(source: &Path, destination: &Path) -> Result<TempFile> {
+    let (temp, file) = TempFile::create_near(destination)?;
+    drop(file);
+    if let Err(error) = fs::copy(source, temp.path()) {
+        return Err(cleanup_error(
+            &temp,
+            format!("copying {} failed: {error}", source.display()),
+        ));
+    }
+    Ok(temp)
+}
+
+fn cleanup_error(temp: &TempFile, reason: impl std::fmt::Display) -> anyhow::Error {
+    match remove_temporary_path(temp.path()) {
+        Ok(()) => anyhow::anyhow!("{reason}. The temporary file was removed."),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            anyhow::anyhow!("{reason}. The temporary file was removed.")
+        }
+        Err(error) => anyhow::anyhow!(
+            "{reason}. Could not remove the temporary file {}: {error}",
+            temp.path().display()
+        ),
+    }
+}
+
 fn main() -> Result<()> {
     match Cli::parse().command {
         Commands::Download { url, path, yes } => download(&url, &path, yes),
@@ -94,7 +244,7 @@ fn main() -> Result<()> {
 }
 
 fn confirm_overwrite(path: &Path, yes: bool) -> Result<bool> {
-    if !path.exists() || yes {
+    if !destination_exists(path)? || yes {
         return Ok(true);
     }
     if !io::stdout().is_terminal() || !io::stdin().is_terminal() {
@@ -115,7 +265,9 @@ fn confirm_overwrite(path: &Path, yes: bool) -> Result<bool> {
         .flush()?;
     loop {
         let mut answer = String::new();
-        io::stdin().read_line(&mut answer)?;
+        if io::stdin().read_line(&mut answer)? == 0 {
+            bail!("no answer received; overwrite cancelled");
+        }
         match answer.trim().to_ascii_lowercase().as_str() {
             "y" | "yes" => return Ok(true),
             "n" | "no" => return Ok(false),
@@ -169,6 +321,7 @@ fn download(url: &str, path: &Path, yes: bool) -> Result<()> {
         println!("Download cancelled.");
         return Ok(());
     }
+    let destination_was_present = destination_exists(path)?;
     let mut response = reqwest::blocking::get(url)
         .map_err(|error| {
             anyhow::anyhow!(
@@ -176,16 +329,7 @@ fn download(url: &str, path: &Path, yes: bool) -> Result<()> {
             )
         })?
         .error_for_status()?;
-    let temp = path.with_file_name(format!(
-        ".daily-{}-{}.part",
-        std::process::id(),
-        path.file_name().unwrap_or_default().to_string_lossy()
-    ));
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temp)
-        .with_context(|| format!("creating temporary file {}", temp.display()))?;
+    let (temp, mut file) = TempFile::create_near(path)?;
     let total = response.content_length();
     let show = io::stdout().is_terminal();
     let mut stdout = io::stdout();
@@ -199,21 +343,27 @@ fn download(url: &str, path: &Path, yes: bool) -> Result<()> {
             Ok(0) => break,
             Ok(n) => n,
             Err(error) => {
-                drop(file);
-                let _ = fs::remove_file(&temp);
-                let message = format!(
-                    "Download interrupted. The partial file was removed. Check your internet connection and try again. ({error})"
-                );
                 if show {
-                    eprintln!("\x1b[31m{message}\x1b[0m");
+                    println!();
                 }
-                bail!("{message}");
+                drop(file);
+                return Err(cleanup_error(
+                    &temp,
+                    format!(
+                        "Download interrupted. Check your internet connection and try again ({error})"
+                    ),
+                ));
             }
         };
         if let Err(error) = file.write_all(&buffer[..count]) {
+            if show {
+                println!();
+            }
             drop(file);
-            let _ = fs::remove_file(&temp);
-            return Err(error.into());
+            return Err(cleanup_error(
+                &temp,
+                format!("writing downloaded data failed: {error}"),
+            ));
         }
         received += count as u64;
         if show && sample_time.elapsed() >= Duration::from_millis(100) {
@@ -225,26 +375,49 @@ fn download(url: &str, path: &Path, yes: bool) -> Result<()> {
         }
     }
     if total.is_some_and(|expected| received < expected) {
+        if show {
+            println!();
+        }
         drop(file);
-        let _ = fs::remove_file(&temp);
-        bail!(
-            "Download interrupted before the full file arrived. The partial file was removed. Check your internet connection and try again."
-        );
+        return Err(cleanup_error(
+            &temp,
+            "Download ended before the full file arrived. Check your internet connection and try again",
+        ));
     }
     if let Err(error) = file.flush() {
+        if show {
+            println!();
+        }
         drop(file);
-        let _ = fs::remove_file(&temp);
-        return Err(error.into());
+        return Err(cleanup_error(
+            &temp,
+            format!("writing the completed download failed: {error}"),
+        ));
     }
-    drop(file);
     if show {
         let _ = progress(&mut stdout, received, total, speed);
         println!();
     }
-    if path.exists() {
-        fs::remove_file(path)?;
+    drop(file);
+    if !destination_was_present && destination_exists(path)? {
+        bail!("destination appeared during download; refusing to overwrite it");
     }
-    fs::rename(&temp, path).with_context(|| format!("saving download to {}", path.display()))?;
+    if let Err(error) = install_file(temp.path(), path) {
+        return Err(cleanup_error(
+            &temp,
+            format!("saving download to {} failed: {error}", path.display()),
+        ));
+    }
+    temp.disarm();
+    Ok(())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
+fn run_notification(command: &mut Command, context: &str) -> Result<()> {
+    let status = command.status().with_context(|| context.to_owned())?;
+    if !status.success() {
+        bail!("{context} ({status})");
+    }
     Ok(())
 }
 
@@ -254,34 +427,47 @@ fn remind(message: &str, at: &str) -> Result<()> {
     let delay = (when.with_timezone(&Utc) - Utc::now())
         .to_std()
         .context("reminder time must be in the future")?;
-    println!(
-        "Reminder set for {}. Keep this process running until it fires.",
-        when.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S %Z")
-    );
+    if io::stdout().is_terminal() {
+        println!(
+            "Reminder set for {}. Keep this process running until it fires.",
+            when.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S %Z")
+        );
+    }
     thread::sleep(delay);
     #[cfg(target_os = "linux")]
-    Command::new("notify-send")
-        .args(["Reminder", message])
-        .status()
-        .context("showing notification; install notify-send")?;
+    run_notification(
+        Command::new("notify-send").args(["Reminder", message]),
+        "showing notification; install notify-send",
+    )?;
     #[cfg(target_os = "macos")]
-    Command::new("osascript")
-        .args([
+    run_notification(
+        Command::new("osascript").args([
             "-e",
-            &format!("display notification {:?} with title \"Reminder\"", message),
-        ])
-        .status()
-        .context("showing notification")?;
+            "on run argv",
+            "-e",
+            "display notification (item 1 of argv) with title \"Reminder\"",
+            "-e",
+            "end run",
+            message,
+        ]),
+        "showing notification",
+    )?;
     #[cfg(target_os = "windows")]
     {
         let escaped = message.replace('\'', "''");
         let script = format!(
             "Add-Type -AssemblyName System.Windows.Forms; $n=New-Object System.Windows.Forms.NotifyIcon; $n.Icon=[System.Drawing.SystemIcons]::Information; $n.BalloonTipTitle='Reminder'; $n.BalloonTipText='{escaped}'; $n.Visible=$true; $n.ShowBalloonTip(10000); Start-Sleep -Seconds 11; $n.Dispose()"
         );
-        Command::new("powershell")
-            .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &script])
-            .status()
-            .context("showing notification")?;
+        run_notification(
+            Command::new("powershell").args([
+                "-NoProfile",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                &script,
+            ]),
+            "showing notification",
+        )?;
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
     println!("Reminder: {message}");
@@ -295,8 +481,18 @@ fn file_command(action: FileCommands) -> Result<()> {
             destination,
             yes,
         } => {
+            if same_path(&source, &destination) {
+                bail!("source and destination refer to the same file");
+            }
             if confirm_overwrite(&destination, yes)? {
-                fs::copy(source, &destination)?;
+                let temp = copy_to_temp(&source, &destination)?;
+                if let Err(error) = install_file(temp.path(), &destination) {
+                    return Err(cleanup_error(
+                        &temp,
+                        format!("copying to {} failed: {error}", destination.display()),
+                    ));
+                }
+                temp.disarm();
             }
         }
         FileCommands::Move {
@@ -304,11 +500,13 @@ fn file_command(action: FileCommands) -> Result<()> {
             destination,
             yes,
         } => {
+            if same_path(&source, &destination) {
+                bail!("source and destination refer to the same file");
+            }
             if confirm_overwrite(&destination, yes)? {
-                if destination.exists() {
-                    fs::remove_file(&destination)?;
-                }
-                fs::rename(source, &destination)?;
+                install_file(&source, &destination).with_context(|| {
+                    format!("moving {} to {}", source.display(), destination.display())
+                })?;
             }
         }
         FileCommands::Rename {
@@ -316,14 +514,18 @@ fn file_command(action: FileCommands) -> Result<()> {
             new_path,
             yes,
         } => {
+            if same_path(&path, &new_path) {
+                bail!("source and destination refer to the same file");
+            }
             if confirm_overwrite(&new_path, yes)? {
-                if new_path.exists() {
-                    fs::remove_file(&new_path)?;
-                }
-                fs::rename(path, new_path)?;
+                install_file(&path, &new_path).with_context(|| {
+                    format!("renaming {} to {}", path.display(), new_path.display())
+                })?;
             }
         }
-        FileCommands::Mkdir { path } => fs::create_dir_all(path)?,
+        FileCommands::Mkdir { path } => {
+            fs::create_dir_all(&path).with_context(|| format!("creating {}", path.display()))?;
+        }
     }
     Ok(())
 }

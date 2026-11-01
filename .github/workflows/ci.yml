@@ -33,8 +33,8 @@ jobs:
           - os: ubuntu-latest
             asset: linux-x86_64
             executable: ""
-          - os: macos-latest
-            asset: macos
+          - os: macos-26
+            asset: macos-arm64
             executable: ""
           - os: windows-latest
             asset: windows-x86_64
